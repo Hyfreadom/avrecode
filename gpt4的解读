@@ -1,0 +1,19 @@
+这是一个 C++ 类定义，名为 `compressor`。这个类用于对输入文件进行压缩，并将压缩后的数据写入到指定的输出流。
+
+这个类有以下几个主要部分：
+
+1. 构造函数：接受输入文件名和输出流作为参数。构造函数会尝试使用 `av_file_map` 函数打开输入文件并将其映射到内存。如果打开失败，将抛出一个 `std::invalid_argument` 异常。
+
+2. 析构函数：使用 `av_file_unmap` 函数释放映射到内存的输入文件。
+
+3. `run` 方法：负责整个压缩过程。首先，它使用 `av_decoder` 类实例化一个解码器对象，并调用 `dump_stream_info` 和 `decode_video` 方法对输入视频进行解码。接着，它将最终的数据块添加到输出中，并将序列化后的数据写入到输出流。
+
+4. `read_packet` 方法：从原始字节中读取数据包。
+
+5. 内部类 `cabac_decoder`：这个类是一个 CABAC 解码器，用于处理 CABAC 编码的数据。
+
+6. `get_model` 方法：返回指向 `h264_model` 实例的指针。
+
+7. 私有方法和成员变量：类的内部还有一些私有方法和成员变量，例如 `find_next_coded_block_and_emit_literal` 方法和 `input_filename`、`out_stream`、`original_bytes` 等成员变量。
+
+总之，这个 `compressor` 类是一个用于压缩输入文件的类，它使用 AV 解码器进行解码，并使用 CABAC 解码器对数据进行处理。压缩后的数据将被写入指定的输出流。
