@@ -72,6 +72,7 @@ bool av_check(int return_value, const std::string& message = "") {
 
 // Sets up a libavcodec decoder with I/O and decoding hooks.
 template <typename Driver>
+
 class av_decoder {
  public:
   av_decoder(Driver *driver, const std::string& input_filename) : driver(driver) {
@@ -1099,19 +1100,26 @@ private:
   const void* state;
 };
 
+
+
+
+
+//这个类用于对输入文件进行压缩，并将压缩后的数据写入到指定的输出流。
 class compressor {
  public:
+  //公共成员函数： 接受文件名，输出数据流
   compressor(const std::string& input_filename, std::ostream& out_stream)
     : input_filename(input_filename), out_stream(out_stream) {
     if (av_file_map(input_filename.c_str(), &original_bytes, &original_size, 0, NULL) < 0) {
       throw std::invalid_argument("Failed to open file: " + input_filename);
     }
   }
-
+  //析构函数，清零变量
   ~compressor() {
     av_file_unmap(original_bytes, original_size);
   }
 
+//run方法：负责整个压缩过程
   void run() {
     // Run through all the frames in the file, building the output using our hooks.
     av_decoder<compressor> d(this, input_filename);
@@ -1124,6 +1132,7 @@ class compressor {
     out_stream << out.SerializeAsString();
   }
 
+  //read_packet 方法：从原始字节中读取数据包。
   int read_packet(uint8_t *buffer_out, int size) {
     size = std::min(size, int(original_size - read_offset));
     memcpy(buffer_out, &original_bytes[read_offset], size);
@@ -1131,6 +1140,7 @@ class compressor {
     return size;
   }
 
+  //内部类 cabac_decoder：这个类是一个 CABAC 解码器，用于处理 CABAC 编码的数据。
   class cabac_decoder {
    public:
     cabac_decoder(compressor *c, CABACContext *ctx_in, const uint8_t *buf, int size) {
@@ -1266,12 +1276,17 @@ class compressor {
     CodingType queueing_symbols = PIP_UNKNOWN;
     std::vector<h264_symbol> symbol_buffer;
   };
+  //get_model 方法：返回指向 h264_model 实例的指针。
   h264_model *get_model() {
     return &model;
   }
 
- private:
 
+
+  private:
+  //私有方法和成员变量，只能被该类的成员函数访问
+  //包含find_next_coded_block_and_emit_literal方法
+  //input_filename、out_stream、original_bytes等私有成员变量
   Recoded::Block* find_next_coded_block_and_emit_literal(const uint8_t *buf, int size) {
     uint8_t *found = static_cast<uint8_t*>( memmem(
         &original_bytes[prev_coded_block_end], read_offset - prev_coded_block_end,
