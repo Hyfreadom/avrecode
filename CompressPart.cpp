@@ -128,7 +128,7 @@ class av_decoder {
 
         int got_frame = 0;
 
-        //利用ffmpeg lib
+        //利用ffmpeg的 lib库
         //libavcodec->utils.c->avcodec_decode_video
         av_check( avcodec_decode_video2(codec, frame.get(), &got_frame, &packet),
             "Failed to decode video frame" );
@@ -1280,7 +1280,6 @@ class compressor {
   h264_model *get_model() {
     return &model;
   }
-
 
   private:
   //私有方法和成员变量，只能被该类的成员函数访问

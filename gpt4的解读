@@ -54,9 +54,147 @@ void decode_video() :
 
    a. 检查编解码器是否已经打开，如果没有打开，设置线程数为1，设置钩子（hooks）并使用 `avcodec_open2()` 函数打开编解码器。
 
-   b. 定义一个变量 `got_frame`，用于表示是否成功解码一个视频帧。然后调用 `avcodec_decode_video2()` 函数尝试解码视频帧。如果解码成功，`got_frame` 变量将被设置为非零值。
+   b. 定义一个变量 `got_frame`，用于表示是否成功解码一个视频帧。然后调用 `avcodec_decode_video2()` 函数尝试解码视频帧。
+      如果解码成功，`got_frame` 变量将被设置为非零值。
 
 5. 使用 `av_packet_unref()` 函数减少数据包的引用计数。这是为了确保在每次迭代结束时正确地释放已分配的内存。
 
 总之，这个函数的主要任务是从输入视频流中读取数据包并解码视频帧。
 注意这个函数不会处理解码后的视频帧，这些帧可以在函数调用的外部进行进一步处理。
+
+
+
+======================================================================================================================
+
+class h264_symbol:
+
+这是一个名为 `h264_symbol` 的类，它表示 H.264 视频编码中的一个符号。类定义包括以下内容：
+
+1. 成员变量：`symbol` 和 `state`。`symbol` 表示 H.264 符号的整数值
+，`state` 是一个指向 CABAC（上下文自适应二进制算术编码）编码过程中状态的指针。
+
+2. 构造函数：它接受一个整数（符号值）和一个指向状态的指针，并将它们分别初始化为 `symbol` 和 `state` 成员变量。
+
+3. `execute` 方法：这是一个模板方法，接受以下参数：
+   - `encoder`：一个编码器对象，负责将符号编码为比特流。
+   - `model`：一个指向 `h264_model` 对象的指针，负责存储 H.264 编码的状态并提供状态更新和概率计算功能。
+   - `out`：一个指向 `Recoded::Block` 对象的指针，存储编码后的比特流。
+   - `encoder_out`：一个 `std::vector<uint8_t>` 对象，存储编码器输出的比特流。
+
+`execute` 方法的主要功能是将 H.264 符号编码为比特流，并根据需要更新模型状态。
+它还根据当前符号和状态进行一些条件检查，例如检查当前符号是否在显著性映射中、是否为感兴趣的块等。
+此外，它还可以根据条件启用和禁用模型的调试输出。
+
+当 `state` 等于 `model->terminate_context` 且 `symbol` 为真时，
+`execute` 方法会完成编码过程并将编码器输出的比特流存储到 `out` 对象中。
+
+======================================================================================================================
+======================================================================================================================
+Class cabac_decoder:
+
+这是一个名为 `cabac_decoder` 的类，它用于对 CABAC（Context-Adaptive Binary Arithmetic Coding）编码的数据进行解码。
+CABAC 是 H.264 视频编码标准中用于表示数据的一种熵编码方法。
+`cabac_decoder` 类实现了解码器，可以从 CABAC 编码的数据中提取原始符号。
+
+在这个类中，有几个重要的方法：
+
+1. `execute_symbol`：执行解码的符号，将其传递给 H.264 符号类进行处理。
+2. `get`：从 CABAC 编码中解码一个符号，并更新上下文。
+3. `get_bypass`：解码一个忽略上下文的符号。
+4. `get_terminate`：解码一个表示编码终止的符号。
+5. `begin_coding_type` 和 `end_coding_type`：处理开始和结束编码类型的信号。
+
+`cabac_decoder` 类还包含一些私有成员和方法，
+用于处理符号缓冲区、上下文管理和编码类型队列。
+整个类的目的是解码 CABAC 编码的数据并将其转换为原始符号，以便在视频解码过程中使用。
+
+======================================================================================================================
+======================================================================================================================
+find_next_coded_block_and_emit_literal:
+
+这是一个名为 `find_next_coded_block_and_emit_literal` 的成员函数，它是在 `compressor` 类中定义的。
+这个函数的目的是在原始字节数据中查找下一个编码块，并在找到该块之前的数据中插入字面量（未编码数据）。
+
+函数接受两个参数：
+1. `buf`：一个指向要查找的编码块的 `uint8_t` 类型指针。
+2. `size`：表示编码块大小的整数。
+
+在函数中，首先通过 `memmem` 函数在原始字节数据中查找给定的编码块。
+找到匹配的编码块后，计算从上一个编码块结束到当前找到的编码块之间的间隔（`gap`）。
+然后，在输出中添加一个新的字面量块，用于存储间隔数据。
+
+接下来，更新 `prev_coded_block_end` 变量以指向新找到的编码块的末尾。
+然后，在输出中添加一个新的编码块，并设置其长度的奇偶性（`length_parity`）以及最后一个字节（如果大小大于1）。
+
+如果找到了有效的编码块，函数返回一个指向新创建的 `Recoded::Block` 的指针，
+以便在后续步骤中对其进行编码。如果没有找到编码块（例如，由于 NAL 转义），
+则在块列表中放置一个跳过标记，并返回 `nullptr`，告诉重新编码器忽略此块。
+
+
+======================================================================================================================
+======================================================================================================================
+arithmetic_code.h
+
+这是一个C++模板结构，实现了算术编码的压缩和解压缩。算术编码是一种无损数据压缩算法，它将输入数据编码为比特流，使得原始数据可以通过解码比特流完全恢复。算术编码是基于输入数据的概率模型工作的，因此对于具有已知概率分布的数据，它可以实现非常高的压缩率。
+
+该模板结构包含两个子类：`encoder` 和 `decoder`。`encoder` 类用于将输入数据编码为压缩的比特流，而 `decoder` 类则从压缩的比特流中解码出原始数据。
+
+这个模板结构有三个模板参数：
+
+1. `FixedPoint`：用于表示定点数的无符号整数类型。它表示算术编码中使用的定点数值。
+2. `CompressedDigit`：用于表示压缩比特流中的数字的无符号整数类型。
+3. `MinRange`：表示概率估计的最小精度。这是一个与时间和空间权衡相关的参数：
+较低的精度意味着较差的压缩效果，但较高的精度会导致更频繁的溢出数字。
+
+这个模板结构和子类使用了许多`static_assert`和`constexpr`来确保在编译时检查模板参数的正确性和计算一些基本值。
+此外，这个实现使用了模板元编程技术，以在编译时处理一些计算和类型检查，从而提高运行时性能。
+
+`encoder` 类的构造函数接受一个输出迭代器（例如指向`std::vector`或`std::ostream`的迭代器），
+用于将压缩后的数字输出到目标容器。`decoder` 类的构造函数接受一个输入迭代器（例如从`std::vector`或`std::istream`中读取的迭代器），
+用于从输入容器读取压缩后的数字。
+
+该实现提供了一个`put`方法，用于将给定的符号（在这个例子中为0或1）添加到压缩流中。
+这个方法需要一个函数，该函数根据当前的范围计算1的概率。
+对于解码器，`get`方法接受一个类似的概率函数，并返回解码得到的符号。
+
+======================================================================================================================
+======================================================================================================================
+
+上文中的 class encoder
+This is a C++ implementation of an arithmetic encoder class named `encoder`. 
+The purpose of this class is to compress data by encoding it into a smaller number of bits, based on the probabilities of the symbols in the input data. 
+The class is a template class that takes two template parameters: `OutputDigit` and `CompressedDigit`. 
+It also takes an `OutputIterator` as a constructor parameter, which is an iterator for outputting the compressed data.
+
+The class has the following public interface:
+
+1. Two constructors: The first constructor takes an `OutputIterator`, 
+and the second one takes an `OutputIterator` and a `FixedPoint` (initial range) as arguments.
+2. A destructor: This finishes the encoding process and ensures that all necessary bits are emitted.
+3. A `get_bytes_emitted()` function: This returns the number of bytes that have been emitted so far.
+4. A `put()` function: This encodes a symbol (0 or 1) using the provided probability function and updates the encoder's state.
+5. A `finish()` function: This is called to complete the encoding process and emit any remaining bits.
+
+The class also has several private methods and variables:
+
+1. A `renormalize_and_emit_digit()` function template: T
+his function is responsible for renormalizing the range and emitting a digit of the compressed output.
+
+2. An `emit_digit()` function template: 
+This function is responsible for emitting a digit of the compressed output to the `OutputIterator`.
+
+3. `bytes_emitted`: A variable that keeps track of the total number of bytes emitted so far.
+
+4. `out`: The `OutputIterator` where the compressed data is being written.
+
+5. `low`: A variable representing the lower bound of the encoding range.
+
+6. `range`: A variable representing the range of the encoding interval.
+
+7. `overflow`: A vector containing high digits of x that have not yet been emitted.
+
+The encoder uses arithmetic encoding to compress the input data based on the probabilities of the input symbols. 
+Arithmetic encoding is a form of entropy encoding used in lossless data compression, 
+which assigns a unique code to each symbol in the input data, based on their probabilities. 
+This allows for more efficient compression, as more common symbols are assigned shorter codes, 
+while less common symbols are assigned longer codes.
