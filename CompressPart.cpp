@@ -127,6 +127,9 @@ class av_decoder {
         }
 
         int got_frame = 0;
+
+        //利用ffmpeg lib
+        //libavcodec->utils.c->avcodec_decode_video
         av_check( avcodec_decode_video2(codec, frame.get(), &got_frame, &packet),
             "Failed to decode video frame" );
       }
