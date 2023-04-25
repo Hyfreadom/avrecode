@@ -1,19 +1,62 @@
-这是一个 C++ 类定义，名为 `compressor`。这个类用于对输入文件进行压缩，并将压缩后的数据写入到指定的输出流。
+是的，我记得之前提到的 `class compressor`。以下是这个类的运行过程：
 
-这个类有以下几个主要部分：
+1. 首先，通过构造函数 `compressor(const std::string &input_filename, const std::string &output_filename)` 
+创建一个 `compressor` 类的实例。在构造函数中，它会初始化输入文件名、输出文件名、`Driver` 类型的对象，
+以及将类的实例设置为解码器的驱动程序。
 
-1. 构造函数：接受输入文件名和输出流作为参数。构造函数会尝试使用 `av_file_map` 函数打开输入文件并将其映射到内存。如果打开失败，将抛出一个 `std::invalid_argument` 异常。
+2. 接下来，调用 `compress()` 成员函数来执行压缩操作。
+在 `compress()` 函数中，它首先创建一个 `av_decoder<compressor>` 实例，
+这个实例使用当前的 `compressor` 实例作为驱动程序，并传入输入文件名。
+然后，调用 `d.dump_stream_info()` 方法输出流信息，这个方法会读取音视频文件的流信息并显示在控制台上。
+之后，调用 `d.decode_video()` 方法解码视频，这个方法会逐帧解码输入文件中的所有视频帧。
 
-2. 析构函数：使用 `av_file_unmap` 函数释放映射到内存的输入文件。
+3. 在解码过程中，`av_decoder` 类的实例会调用与 `compressor` 类相关的回调函数，
+例如：`read_packet()`、`get()`、`get_bypass()`、`get_terminate()` 等。
+这些回调函数是 `compressor` 类与解码器之间通信的桥梁。
 
-3. `run` 方法：负责整个压缩过程。首先，它使用 `av_decoder` 类实例化一个解码器对象，并调用 `dump_stream_info` 和 `decode_video` 方法对输入视频进行解码。接着，它将最终的数据块添加到输出中，并将序列化后的数据写入到输出流。
+4. 解码完成后，`compress()` 函数会继续对解码后的视频帧进行处理，
+例如执行压缩算法等操作。
 
-4. `read_packet` 方法：从原始字节中读取数据包。
+5. 处理完成后，将压缩后的数据写入到输出文件。
 
-5. 内部类 `cabac_decoder`：这个类是一个 CABAC 解码器，用于处理 CABAC 编码的数据。
+6. 当 `compress()` 函数执行完毕，整个类的运行过程也就完成了。
 
-6. `get_model` 方法：返回指向 `h264_model` 实例的指针。
+summary:
+总之，`class compressor` 的运行过程主要包括：
+创建实例、解码输入文件、处理解码后的视频帧、压缩数据并写入输出文件。
+在这个过程中，它与解码器类 `av_decoder` 以及驱动程序类 `Driver` 进行交互。
 
-7. 私有方法和成员变量：类的内部还有一些私有方法和成员变量，例如 `find_next_coded_block_and_emit_literal` 方法和 `input_filename`、`out_stream`、`original_bytes` 等成员变量。
 
-总之，这个 `compressor` 类是一个用于压缩输入文件的类，它使用 AV 解码器进行解码，并使用 CABAC 解码器对数据进行处理。压缩后的数据将被写入指定的输出流。
+
+
+
+
+
+
+
+
+
+
+
+void decode_video() :
+
+这段代码是 `decode_video` 函数的实现，它的目的是解码一个视频流。以下是该函数代码的逐步解释：
+
+1. 使用 `av_frame_alloc()` 函数分配一个新的 `AVFrame`，并使用 `av_unique_ptr` 进行资源管理，
+以确保在离开作用域时自动释放 `AVFrame`。
+
+2. 定义一个 `AVPacket` 结构体，用于存储解码过程中的数据包。
+
+3. 使用一个 `while` 循环，当 `av_read_frame()` 函数返回值不等于 `AVERROR_EOF`（表示文件已结束）时，继续执行循环。
+在每次迭代中，`av_read_frame()` 函数会读取下一个数据包，并将其存储在 `packet` 变量中。
+
+4. 通过检查当前数据包所属的流的编解码器类型（`codec->codec_type`）来确定它是否是视频流。如果是视频流，继续执行以下操作：
+
+   a. 检查编解码器是否已经打开，如果没有打开，设置线程数为1，设置钩子（hooks）并使用 `avcodec_open2()` 函数打开编解码器。
+
+   b. 定义一个变量 `got_frame`，用于表示是否成功解码一个视频帧。然后调用 `avcodec_decode_video2()` 函数尝试解码视频帧。如果解码成功，`got_frame` 变量将被设置为非零值。
+
+5. 使用 `av_packet_unref()` 函数减少数据包的引用计数。这是为了确保在每次迭代结束时正确地释放已分配的内存。
+
+总之，这个函数的主要任务是从输入视频流中读取数据包并解码视频帧。
+注意这个函数不会处理解码后的视频帧，这些帧可以在函数调用的外部进行进一步处理。
