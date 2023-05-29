@@ -38,14 +38,58 @@ std::unique_ptr<T, std::function<void(T*&)>> av_unique_ptr(T* p, const std::func
   }
   return std::unique_ptr<T, std::function<void(T*&)>>(p, deleter);
 }
+'''
+这段代码定义了一个名为 `av_unique_ptr` 的模板函数。
+该函数接收两个参数：一个类型为 T 的原始指针 `p`，和一个接收类型为 T 的指针的 std::function 对象 `deleter`。
+函数返回一个 `std::unique_ptr`，拥有类型为 T 的对象的所有权，并使用提供的 `deleter` 来在必要时删除该对象。
+
+`std::unique_ptr` 是一种智能指针，它管理一个动态分配（堆上）的对象。
+当 `std::unique_ptr` 被销毁（例如离开其作用域）时，它将删除其所拥有的对象。
+`std::unique_ptr` 的一个重要特性是它拥有其对象的唯一所有权，不能被复制，但可以被移动。
+这可以防止由于忘记删除对象或多次删除同一个对象而引发的内存泄漏和错误。
+
+这段代码为 `std::unique_ptr` 提供了一个自定义的删除器 `deleter`。
+默认情况下，`std::unique_ptr` 使用 `delete` 来删除其所拥有的对象。
+但有时，我们需要使用特殊的方式来删除对象，例如调用一个特殊的函数，或在一个特殊的环境（如特殊的内存池）中删除对象。
+在这种情况下，我们可以提供一个自定义的删除器。
+
+在这个 `av_unique_ptr` 函数中，如果传入的原始指针 `p` 是 `nullptr`，函数会抛出 `std::bad_alloc` 异常。
+这可能是因为在尝试分配内存时发生了错误。
+'''
 template <typename T>
 std::unique_ptr<T, std::function<void(T*&)>> av_unique_ptr(T* p, void (*deleter)(T**)) {
   return av_unique_ptr<T>(p, [deleter](T*& to_delete){ deleter(&to_delete); });
 }
+'''
+这段代码是一个 `av_unique_ptr` 函数的重载版本，
+它接收一个函数指针 `deleter` 作为其第二个参数，而不是接收一个 `std::function` 对象。
+这个函数指针指向一个接收类型为 `T*` 的指针的函数，并返回 `void`。
+
+在这个函数中，我们创建了一个 lambda 函数，该 lambda 函数接收一个 `T*&` 参数，
+然后调用 `deleter` 函数指针，传入一个指向这个参数的指针。
+然后，我们将这个 lambda 函数传递给另一个 `av_unique_ptr` 函数版本，以创建一个 `std::unique_ptr`。
+
+这个函数允许我们传递一个 C 风格的函数指针作为删除器，
+而不需要直接创建一个 `std::function` 对象。
+这可以让我们更方便地使用像是 FFmpeg 这样的 C 库，
+这些库通常提供了一些函数，用于正确删除其动态分配的对象。
+'''
 template <typename T>
 std::unique_ptr<T, std::function<void(T*&)>> av_unique_ptr(T* p, void (*deleter)(void*) = av_free) {
   return av_unique_ptr<T>(p, [deleter](T*& to_delete){ deleter(to_delete); });
 }
+'''
+这段代码提供了 `av_unique_ptr` 函数的另一种模板重载，它同样接收一个函数指针 `deleter` 作为第二个参数，
+但这次，这个函数接收一个 `void*` 参数，并返回 `void`。这个函数还为 `deleter` 提供了一个默认值 `av_free`，
+如果调用者没有提供第二个参数，那么就会使用这个默认值。
+
+在这个函数中，我们创建了一个 lambda 函数，该 lambda 函数接收一个 `T*&` 参数，
+然后调用 `deleter` 函数指针，传入这个参数。
+然后，我们将这个 lambda 函数传递给另一个 `av_unique_ptr` 函数版本，以创建一个 `std::unique_ptr`。
+
+`av_free` 是 FFmpeg 库中的一个函数，它可以释放由 FFmpeg 的函数（如 `av_malloc`）分配的内存。
+这个函数版本允许我们方便地创建一个 `std::unique_ptr`，用于管理由 FFmpeg 的函数分配的内存，而不需要手动提供一个删除器。
+'''
 
 template <typename T = std::function<void()>>
 struct defer {
